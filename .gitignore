@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+# Project outputs
+output_audio_files/
+output_transcripts/
+chroma_db/
+
 # Distribution / packaging
 .Python
 build/

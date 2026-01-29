@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""
+CLI entrypoint for the video/document transcript pipeline.
+
+Usage:
+  python main.py <file_path> [--subject SUBJECT] [--subject-id ID] [--chapter CHAPTER] [--chapter-id ID] [--part PART] [--user-id USER_ID]
+
+Example:
+  python main.py lesson_01.mp4 --subject "Physics" --subject-id 1 --chapter "Motion" --chapter-id 2 --part "1"
+  python main.py notes.pdf --subject "Math" --subject-id 1 --chapter "Algebra" --chapter-id 3
+"""
+
+import argparse
+import sys
+
+from src.pipeline import process_upload
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Process teacher uploads: video (transcribe → PDF) or PDF/DOCX → store in vector DB."
+    )
+    parser.add_argument("file_path", help="Path to video, PDF, or DOCX file")
+    parser.add_argument("--subject", default="", help="Subject name")
+    parser.add_argument("--subject-id", default="", dest="subject_id", help="Subject ID")
+    parser.add_argument("--chapter", default="", help="Chapter name")
+    parser.add_argument("--chapter-id", default="", dest="chapter_id", help="Chapter ID")
+    parser.add_argument("--part", default="", help="Part number or name")
+    parser.add_argument("--user-id", default="", dest="user_id", help="Teacher/user ID")
+    parser.add_argument(
+        "--audio-dir",
+        default="output_audio_files",
+        help="Directory for extracted audio (video only)",
+    )
+    parser.add_argument(
+        "--transcript-dir",
+        default="output_transcripts",
+        help="Directory for transcript PDFs (video only)",
+    )
+    parser.add_argument(
+        "--chroma-dir",
+        default="chroma_db",
+        help="ChromaDB persist directory",
+    )
+    args = parser.parse_args()
+
+    metadata = {
+        "user_id": args.user_id,
+        "subject": args.subject,
+        "subject_id": args.subject_id,
+        "chapter": args.chapter,
+        "chapter_id": args.chapter_id,
+        "part": args.part,
+    }
+
+    result = process_upload(
+        args.file_path,
+        metadata=metadata,
+        output_audio_dir=args.audio_dir,
+        output_transcript_dir=args.transcript_dir,
+        chroma_dir=args.chroma_dir,
+    )
+
+    if result.get("success"):
+        print("Success.")
+        if result.get("transcript_text"):
+            t = result["transcript_text"]
+            print("Transcript (preview):", t[:200] + "..." if len(t) > 200 else t)
+        if result.get("pdf_path"):
+            print("Transcript PDF:", result["pdf_path"])
+        if result.get("text"):
+            t = result["text"]
+            print("Extracted text (preview):", t[:200] + "..." if len(t) > 200 else t)
+        print("Vector DB doc_id:", result.get("doc_id", ""))
+        return 0
+    else:
+        print("Failed:", result.get("error", "Unknown error"), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

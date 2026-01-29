@@ -1,0 +1,16 @@
+# Audio/video
+pydub>=0.25.1
+SpeechRecognition>=3.10.0
+
+# Documents
+pypdf>=4.0.0
+python-docx>=1.1.0
+
+# PDF generation from transcript
+reportlab>=4.0.0
+
+# Vector store
+chromadb>=0.4.0
+
+# Optional: sentence-transformers for embeddings (or use Chroma default)
+# sentence-transformers>=2.2.0
