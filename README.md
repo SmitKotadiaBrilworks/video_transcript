@@ -18,6 +18,12 @@ sudo apt-get install ffmpeg
 pip install -r requirements.txt
 ```
 
+Use **`python3`** to run (not `python` on systems where only `python3` is installed):
+
+```bash
+python3 main.py path/to/video.mp4 --subject "Physics" ...
+```
+
 ## Supported Uploads
 
 | Type      | Flow                                                                                                                                       |
