@@ -12,5 +12,9 @@ reportlab>=4.0.0
 # Vector store
 chromadb>=0.4.0
 
+# Answer generation (learning portal)
+google-genai>=1.0.0
+python-dotenv>=1.0.0
+
 # Optional: sentence-transformers for embeddings (or use Chroma default)
 # sentence-transformers>=2.2.0

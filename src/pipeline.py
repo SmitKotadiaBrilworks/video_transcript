@@ -8,7 +8,7 @@ from src.audio_utils import extract_audio_from_video
 from src.document_utils import extract_document_text
 from src.pdf_generator import get_transcript_pdf_path, transcript_to_pdf
 from src.transcription import transcribe_long_audio
-from src.vector_store import add_to_vector_db
+from src.vector_store import add_chunked_to_vector_db
 
 
 # Supported extensions
@@ -78,8 +78,8 @@ def process_video(
         "part": metadata.get("part", ""),
         "user_id": metadata.get("user_id", ""),
     }
-    doc_id = add_to_vector_db(transcript, meta, doc_id=None, persist_directory=chroma_dir)
-    result["doc_id"] = doc_id
+    source_id = add_chunked_to_vector_db(transcript, meta, source_id=None, persist_directory=chroma_dir)
+    result["doc_id"] = source_id
     result["success"] = True
     return result
 
@@ -116,8 +116,8 @@ def process_document(
         "part": metadata.get("part", ""),
         "user_id": metadata.get("user_id", ""),
     }
-    doc_id = add_to_vector_db(text, meta, doc_id=None, persist_directory=chroma_dir)
-    result["doc_id"] = doc_id
+    source_id = add_chunked_to_vector_db(text, meta, source_id=None, persist_directory=chroma_dir)
+    result["doc_id"] = source_id
     result["success"] = True
     return result
 

@@ -11,6 +11,9 @@ output_audio_files/
 output_transcripts/
 chroma_db/
 
+# API keys (never commit)
+.env
+
 # Distribution / packaging
 .Python
 build/
