@@ -186,6 +186,7 @@ def add_chunked_to_vector_db(
 def query_vector_db(
     query_text: str,
     n_results: int = 5,
+    where: dict | None = None,
     persist_directory: str = "chroma_db",
     collection_name: str = "teacher_content",
 ):
@@ -193,10 +194,12 @@ def query_vector_db(
     Ask a question and get the most relevant documents (semantic search).
 
     ChromaDB embeds your query and finds documents whose embeddings are closest.
+    Use where to filter by metadata (e.g. {"video_id": "v123"} to get only that video's chunks).
 
     Args:
         query_text: Your question or search phrase.
         n_results: Max number of documents to return (default 5).
+        where: Optional metadata filter, e.g. {"video_id": "v123"}. Only matching chunks are searched.
         persist_directory: ChromaDB persist path.
         collection_name: Collection name.
 
@@ -204,10 +207,13 @@ def query_vector_db(
         dict with keys: ids, documents, metadatas, distances (lower = more similar).
     """
     collection = get_or_create_collection(persist_directory, collection_name)
-    result = collection.query(
-        query_texts=[query_text],
-        n_results=min(n_results, collection.count()),
-    )
+    kwargs = {
+        "query_texts": [query_text],
+        "n_results": min(n_results, collection.count()),
+    }
+    if where:
+        kwargs["where"] = where
+    result = collection.query(**kwargs)
     # query() returns lists of lists (one per query); we have one query
     return {
         "ids": result["ids"][0] if result["ids"] else [],

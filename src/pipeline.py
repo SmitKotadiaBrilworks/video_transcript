@@ -67,10 +67,11 @@ def process_video(
     transcript_to_pdf(transcript, pdf_path, title=f"Transcript: {base_name}")
     result["pdf_path"] = pdf_path
 
-    # 4. Store in vector DB with metadata
+    # 4. Store in vector DB with metadata (video_id = reference for filtering answers by video)
     meta = {
         "file_type": "video",
         "filename": os.path.basename(video_path),
+        "video_id": metadata.get("video_id", ""),
         "subject": metadata.get("subject", ""),
         "subject_id": metadata.get("subject_id", ""),
         "chapter": metadata.get("chapter", ""),
@@ -109,6 +110,7 @@ def process_document(
     meta = {
         "file_type": Path(file_path).suffix.lstrip(".").lower(),
         "filename": os.path.basename(file_path),
+        "video_id": metadata.get("video_id", ""),
         "subject": metadata.get("subject", ""),
         "subject_id": metadata.get("subject_id", ""),
         "chapter": metadata.get("chapter", ""),

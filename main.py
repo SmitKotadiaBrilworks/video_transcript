@@ -6,8 +6,8 @@ Usage:
   python main.py <file_path> [--subject SUBJECT] [--subject-id ID] [--chapter CHAPTER] [--chapter-id ID] [--part PART] [--user-id USER_ID]
 
 Example:
-  python main.py lesson_01.mp4 --subject "Physics" --subject-id 1 --chapter "Motion" --chapter-id 2 --part "1"
-  python main.py notes.pdf --subject "Math" --subject-id 1 --chapter "Algebra" --chapter-id 3
+  python main.py lesson_01.mp4 --video-id v1 --subject "Physics" --subject-id 1 --chapter "Motion" --chapter-id 2 --part "1"
+  python main.py notes.pdf --video-id v2 --subject "Math" --subject-id 1 --chapter "Algebra" --chapter-id 3
 """
 
 import argparse
@@ -21,6 +21,7 @@ def main() -> int:
         description="Process teacher uploads: video (transcribe → PDF) or PDF/DOCX → store in vector DB."
     )
     parser.add_argument("file_path", help="Path to video, PDF, or DOCX file")
+    parser.add_argument("--video-id", default="", dest="video_id", help="Video/content ID (stored in vector DB; use when asking for answers from this video only)")
     parser.add_argument("--subject", default="", help="Subject name")
     parser.add_argument("--subject-id", default="", dest="subject_id", help="Subject ID")
     parser.add_argument("--chapter", default="", help="Chapter name")
@@ -45,6 +46,7 @@ def main() -> int:
     args = parser.parse_args()
 
     metadata = {
+        "video_id": args.video_id,
         "user_id": args.user_id,
         "subject": args.subject,
         "subject_id": args.subject_id,

@@ -122,12 +122,12 @@ python3 query_chroma.py -a "How does motion work?" --n-context 8
 
 **Where to add your Gemini API key** (get one at [Google AI Studio](https://aistudio.google.com/app/apikey)):
 
-| Option | Where | Use when |
-|--------|--------|----------|
-| **`.env` file** (recommended) | In the project root, create a file named `.env` with one line: `GEMINI_API_KEY=your_actual_key` | You want the key loaded automatically and not committed to git (`.env` is in `.gitignore`). Copy from `.env.example`: `cp .env.example .env` then edit `.env`. |
-| **Terminal (current session)** | Run in the same terminal before the script: `export GEMINI_API_KEY=your_actual_key` | Quick test; key is not saved. |
-| **Shell profile** | Add `export GEMINI_API_KEY=your_actual_key` to `~/.bashrc` or `~/.zshrc`, then run `source ~/.bashrc` (or reopen the terminal) | You want the key set in every new terminal. |
-| **CLI flag** | Run: `python3 query_chroma.py --ask "..." --api-key your_actual_key` | One-off run without saving the key anywhere. |
+| Option                         | Where                                                                                                                          | Use when                                                                                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`.env` file** (recommended)  | In the project root, create a file named `.env` with one line: `GEMINI_API_KEY=your_actual_key`                                | You want the key loaded automatically and not committed to git (`.env` is in `.gitignore`). Copy from `.env.example`: `cp .env.example .env` then edit `.env`. |
+| **Terminal (current session)** | Run in the same terminal before the script: `export GEMINI_API_KEY=your_actual_key`                                            | Quick test; key is not saved.                                                                                                                                  |
+| **Shell profile**              | Add `export GEMINI_API_KEY=your_actual_key` to `~/.bashrc` or `~/.zshrc`, then run `source ~/.bashrc` (or reopen the terminal) | You want the key set in every new terminal.                                                                                                                    |
+| **CLI flag**                   | Run: `python3 query_chroma.py --ask "..." --api-key your_actual_key`                                                           | One-off run without saving the key anywhere.                                                                                                                   |
 
 ### From Python
 
@@ -147,7 +147,3 @@ result = query_vector_db("How does motion work?", n_results=5)
 data = list_all_documents()
 # data["ids"], data["documents"], data["metadatas"], data["count"]
 ```
-
-## License
-
-MIT

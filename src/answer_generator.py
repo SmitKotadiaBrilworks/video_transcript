@@ -19,18 +19,23 @@ Rules:
 def get_context_from_vector_db(
     question: str,
     n_results: int = 6,
+    video_id: str | None = None,
     persist_directory: str = "chroma_db",
     collection_name: str = "teacher_content",
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """
     Get the most relevant passages from the vector DB for a question.
 
+    If video_id is provided, only chunks from that video (metadata video_id) are searched.
+
     Returns:
         (list of passage texts, list of metadata dicts).
     """
+    where = {"video_id": video_id} if video_id else None
     result = query_vector_db(
         query_text=question,
         n_results=n_results,
+        where=where,
         persist_directory=persist_directory,
         collection_name=collection_name,
     )
@@ -112,6 +117,7 @@ Provide a precise, clear answer suitable for a learning portal based only on the
 def ask_question(
     question: str,
     n_context: int = 6,
+    video_id: str | None = None,
     api_key: str | None = None,
     model: str = "gemini-2.5-flash",
     persist_directory: str = "chroma_db",
@@ -120,7 +126,9 @@ def ask_question(
     """
     Answer a question using vector DB context + Google Gemini (learning portal).
 
-    1. Retrieves relevant passages from the vector DB.
+    If video_id is provided, the answer is generated only from that video's vector data.
+
+    1. Retrieves relevant passages from the vector DB (optionally filtered by video_id).
     2. Sends question + passages to Gemini to generate a precise answer.
 
     Returns:
@@ -131,11 +139,18 @@ def ask_question(
         documents, metadatas = get_context_from_vector_db(
             question,
             n_results=n_context,
+            video_id=video_id,
             persist_directory=persist_directory,
             collection_name=collection_name,
         )
         if not documents:
-            result["answer"] = "No relevant course material found. Please make sure videos or documents have been uploaded and try rephrasing your question."
+            if video_id:
+                result["answer"] = (
+                    f"No relevant course material found for video_id '{video_id}'. "
+                    "Make sure the video was uploaded with this video_id and try rephrasing your question."
+                )
+            else:
+                result["answer"] = "No relevant course material found. Please make sure videos or documents have been uploaded and try rephrasing your question."
             result["success"] = True
             return result
 

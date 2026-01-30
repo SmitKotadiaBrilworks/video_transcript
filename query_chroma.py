@@ -60,6 +60,12 @@ def main() -> int:
         help="Number of passages to send to Gemini for --ask (default: 6).",
     )
     parser.add_argument(
+        "--video-id",
+        default="",
+        dest="video_id",
+        help="Filter by video ID: answer/query only from this video's vector data (use same ID as when uploading).",
+    )
+    parser.add_argument(
         "--chroma-dir",
         default="chroma_db",
         help="ChromaDB persist directory.",
@@ -81,6 +87,7 @@ def main() -> int:
         result = ask_question(
             question=args.ask,
             n_context=args.n_context,
+            video_id=args.video_id or None,
             api_key=args.api_key,
             persist_directory=args.chroma_dir,
         )
@@ -121,9 +128,11 @@ def main() -> int:
         return 0
 
     # --query
+    where = {"video_id": args.video_id} if args.video_id else None
     result = query_vector_db(
         args.query,
         n_results=args.n_results,
+        where=where,
         persist_directory=args.chroma_dir,
     )
     if args.json:
