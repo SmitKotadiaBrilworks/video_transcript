@@ -26,25 +26,29 @@ python3 main.py path/to/video.mp4 --subject "Physics" ...
 
 ## Supported Uploads
 
-| Type      | Flow                                                                                                                                       |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Video** | Extract audio (pydub) → Transcribe (SpeechRecognition / Google Web Speech API) → Create transcript PDF → Store text + metadata in ChromaDB |
-| **PDF**   | Extract text (pypdf) → Store text + metadata in ChromaDB                                                                                   |
-| **DOCX**  | Extract text (python-docx) → Store text + metadata in ChromaDB                                                                             |
+| Input | Flow |
+| ----- | ----- |
+| **Local video** (mp4, webm, …) | Extract audio (pydub) → Transcribe (Google Web Speech API) → Transcript PDF → ChromaDB |
+| **Video URL** (YouTube, Vimeo, direct .mp4 link) | Downloaded first (yt-dlp or direct HTTP), then same as local video |
+| **PDF** (file or direct URL) | Extract text (pypdf) → ChromaDB |
+| **DOCX** (file or direct URL) | Extract text (python-docx) → ChromaDB |
 
-**Note:** Legacy `.doc` is not supported; use `.docx` only.
+**Note:** Legacy `.doc` is not supported; use `.docx` only. For YouTube/links you need **ffmpeg** and **yt-dlp** (`pip install -r requirements.txt`). If YouTube fails with an "n challenge" or "n-sig" error, update yt-dlp: `pip install -U yt-dlp`.
 
 ## Usage
 
 ### CLI
 
 ```bash
-# Video: transcribe → PDF → vector DB
-python main.py path/to/lesson.mp4 --subject "Physics" --subject-id 1 --chapter "Motion" --chapter-id 2 --part "1" --user-id teacher_01
+# Local video: transcribe → PDF → vector DB
+python3 main.py path/to/lesson.mp4 --video-id v1 --subject "Physics" --chapter "Motion" --part "1" --user-id teacher_01
+
+# Direct link (YouTube, Vimeo, or .mp4 URL): downloaded then processed
+python3 main.py "https://www.youtube.com/watch?v=Xea-qgzR030" --video-id v1 --subject "Physics" --chapter "Motion" --user-id teacher_01
 
 # PDF or DOCX: extract text → vector DB
-python main.py path/to/notes.pdf --subject "Math" --subject-id 1 --chapter "Algebra" --chapter-id 3
-python main.py path/to/handout.docx --subject "Chemistry" --subject-id 2 --chapter "Reactions" --chapter-id 1
+python3 main.py path/to/notes.pdf --video-id v2 --subject "Math" --chapter "Algebra" --chapter-id 3
+python3 main.py path/to/handout.docx --video-id v3 --subject "Chemistry" --chapter "Reactions" --chapter-id 1
 ```
 
 ### From Python
@@ -67,7 +71,7 @@ result = process_upload("notes.pdf", metadata=metadata)
 
 ```
 video_transcript/
-├── main.py                 # CLI: process uploads (video/PDF/DOCX)
+├── main.py                 # CLI: process uploads (file or URL: video/PDF/DOCX)
 ├── query_chroma.py         # CLI: query ChromaDB or list all docs with metadata
 ├── requirements.txt
 ├── src/
@@ -75,10 +79,11 @@ video_transcript/
 │   ├── audio_utils.py      # Extract audio from video (pydub), split into chunks
 │   ├── transcription.py   # Audio → text (SpeechRecognition / Google)
 │   ├── document_utils.py   # PDF/DOCX text extraction
+│   ├── download_utils.py   # Download from YouTube / direct URLs (yt-dlp)
 │   ├── pdf_generator.py    # Transcript text → PDF (reportlab)
-│   ├── vector_store.py    # ChromaDB: add/query chunks with metadata
+│   ├── vector_store.py     # ChromaDB: add/query chunks with metadata
 │   ├── answer_generator.py # Gemini: precise answers from vector DB context (learning portal)
-│   └── pipeline.py         # process_upload() routes by file type
+│   └── pipeline.py         # process_upload() routes by file type or URL
 ├── output_audio_files/     # Extracted/chunked audio (video only)
 ├── output_transcripts/     # Generated transcript PDFs
 └── chroma_db/              # ChromaDB persistence
