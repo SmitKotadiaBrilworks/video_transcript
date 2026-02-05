@@ -1,4 +1,4 @@
-"""Main pipeline: route uploads by type (video / PDF / DOCX) and process."""
+"""Main pipeline: route uploads by type (video / PDF / DOCX) or URL; process."""
 
 import os
 from pathlib import Path
@@ -6,9 +6,10 @@ from typing import Any
 
 from src.audio_utils import extract_audio_from_video
 from src.document_utils import extract_document_text
+from src.download_utils import download_media, is_url
 from src.pdf_generator import get_transcript_pdf_path, transcript_to_pdf
 from src.transcription import transcribe_long_audio
-from src.vector_store import add_to_vector_db
+from src.vector_store import add_chunked_to_vector_db
 
 
 # Supported extensions
@@ -67,10 +68,11 @@ def process_video(
     transcript_to_pdf(transcript, pdf_path, title=f"Transcript: {base_name}")
     result["pdf_path"] = pdf_path
 
-    # 4. Store in vector DB with metadata
+    # 4. Store in vector DB with metadata (video_id = reference for filtering answers by video)
     meta = {
         "file_type": "video",
         "filename": os.path.basename(video_path),
+        "video_id": metadata.get("video_id", ""),
         "subject": metadata.get("subject", ""),
         "subject_id": metadata.get("subject_id", ""),
         "chapter": metadata.get("chapter", ""),
@@ -78,8 +80,8 @@ def process_video(
         "part": metadata.get("part", ""),
         "user_id": metadata.get("user_id", ""),
     }
-    doc_id = add_to_vector_db(transcript, meta, doc_id=None, persist_directory=chroma_dir)
-    result["doc_id"] = doc_id
+    source_id = add_chunked_to_vector_db(transcript, meta, source_id=None, persist_directory=chroma_dir)
+    result["doc_id"] = source_id
     result["success"] = True
     return result
 
@@ -109,6 +111,7 @@ def process_document(
     meta = {
         "file_type": Path(file_path).suffix.lstrip(".").lower(),
         "filename": os.path.basename(file_path),
+        "video_id": metadata.get("video_id", ""),
         "subject": metadata.get("subject", ""),
         "subject_id": metadata.get("subject_id", ""),
         "chapter": metadata.get("chapter", ""),
@@ -116,8 +119,8 @@ def process_document(
         "part": metadata.get("part", ""),
         "user_id": metadata.get("user_id", ""),
     }
-    doc_id = add_to_vector_db(text, meta, doc_id=None, persist_directory=chroma_dir)
-    result["doc_id"] = doc_id
+    source_id = add_chunked_to_vector_db(text, meta, source_id=None, persist_directory=chroma_dir)
+    result["doc_id"] = source_id
     result["success"] = True
     return result
 
@@ -128,22 +131,32 @@ def process_upload(
     output_audio_dir: str = "output_audio_files",
     output_transcript_dir: str = "output_transcripts",
     chroma_dir: str = "chroma_db",
+    download_dir: str = "downloaded_media",
 ) -> dict[str, Any]:
     """
-    Process an uploaded file: video → transcript + PDF + vector DB; PDF/DOCX → vector DB.
+    Process an uploaded file or URL: video → transcript + PDF + vector DB; PDF/DOCX → vector DB.
+
+    If file_path is an HTTP(S) URL (e.g. YouTube link), it is downloaded first, then processed.
 
     Args:
-        file_path: Path to the uploaded file (video, PDF, or DOCX).
-        metadata: Optional metadata (user_id, subject, subject_id, chapter, chapter_id, part).
+        file_path: Path to a local file (video, PDF, DOCX) or a direct/YouTube URL.
+        metadata: Optional metadata (video_id, user_id, subject, chapter, etc.).
         output_audio_dir: Directory for extracted audio (video only).
         output_transcript_dir: Directory for transcript PDFs (video only).
         chroma_dir: ChromaDB persist directory.
+        download_dir: Directory for files downloaded from URLs (default: downloaded_media).
 
     Returns:
         Result dict (success, transcript_text or text, pdf_path if video, doc_id).
     """
     if metadata is None:
         metadata = {}
+
+    if is_url(file_path):
+        try:
+            file_path = download_media(file_path, output_dir=download_dir)
+        except Exception as e:
+            return {"success": False, "error": f"Download failed: {e}"}
 
     file_type = _get_file_type(file_path)
     if file_type == "video":

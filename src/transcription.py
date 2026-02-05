@@ -3,12 +3,13 @@
 import speech_recognition as sr
 
 
-def audio_to_text(audio_path: str) -> str | None:
+def audio_to_text(audio_path: str, verbose: bool = False) -> str | None:
     """
     Transcribe a single audio file using Google Web Speech API.
 
     Args:
         audio_path: Path to WAV audio file.
+        verbose: If True, print a message when a segment cannot be transcribed.
 
     Returns:
         Transcribed text or None on failure.
@@ -22,7 +23,8 @@ def audio_to_text(audio_path: str) -> str | None:
         text = recognizer.recognize_google(audio_data)
         return text
     except sr.UnknownValueError:
-        print("Could not understand audio.")
+        if verbose:
+            print("Could not understand audio.")
     except sr.RequestError as e:
         print(f"Error during speech recognition: {e}")
 
@@ -53,8 +55,16 @@ def transcribe_long_audio(
         output_dir=output_dir,
     )
     parts: list[str] = []
+    failed = 0
     for path in chunks:
-        text = audio_to_text(path)
+        text = audio_to_text(path, verbose=False)
         if text:
             parts.append(text)
+        else:
+            failed += 1
+    if failed > 0:
+        print(
+            f"Note: {failed} of {len(chunks)} segments could not be transcribed "
+            "(often silence, background noise, or unclear speech)."
+        )
     return " ".join(parts).strip()

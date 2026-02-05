@@ -10,6 +10,10 @@ __pycache__/
 output_audio_files/
 output_transcripts/
 chroma_db/
+downloaded_media/
+
+# API keys (never commit)
+.env
 
 # Distribution / packaging
 .Python

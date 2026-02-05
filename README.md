@@ -26,25 +26,29 @@ python3 main.py path/to/video.mp4 --subject "Physics" ...
 
 ## Supported Uploads
 
-| Type      | Flow                                                                                                                                       |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Video** | Extract audio (pydub) → Transcribe (SpeechRecognition / Google Web Speech API) → Create transcript PDF → Store text + metadata in ChromaDB |
-| **PDF**   | Extract text (pypdf) → Store text + metadata in ChromaDB                                                                                   |
-| **DOCX**  | Extract text (python-docx) → Store text + metadata in ChromaDB                                                                             |
+| Input | Flow |
+| ----- | ----- |
+| **Local video** (mp4, webm, …) | Extract audio (pydub) → Transcribe (Google Web Speech API) → Transcript PDF → ChromaDB |
+| **Video URL** (YouTube, Vimeo, direct .mp4 link) | Downloaded first (yt-dlp or direct HTTP), then same as local video |
+| **PDF** (file or direct URL) | Extract text (pypdf) → ChromaDB |
+| **DOCX** (file or direct URL) | Extract text (python-docx) → ChromaDB |
 
-**Note:** Legacy `.doc` is not supported; use `.docx` only.
+**Note:** Legacy `.doc` is not supported; use `.docx` only. For YouTube/links you need **ffmpeg** and **yt-dlp** (`pip install -r requirements.txt`). If YouTube fails with an "n challenge" or "n-sig" error, update yt-dlp: `pip install -U yt-dlp`.
 
 ## Usage
 
 ### CLI
 
 ```bash
-# Video: transcribe → PDF → vector DB
-python main.py path/to/lesson.mp4 --subject "Physics" --subject-id 1 --chapter "Motion" --chapter-id 2 --part "1" --user-id teacher_01
+# Local video: transcribe → PDF → vector DB
+python3 main.py path/to/lesson.mp4 --video-id v1 --subject "Physics" --chapter "Motion" --part "1" --user-id teacher_01
+
+# Direct link (YouTube, Vimeo, or .mp4 URL): downloaded then processed
+python3 main.py "https://www.youtube.com/watch?v=Xea-qgzR030" --video-id v1 --subject "Physics" --chapter "Motion" --user-id teacher_01
 
 # PDF or DOCX: extract text → vector DB
-python main.py path/to/notes.pdf --subject "Math" --subject-id 1 --chapter "Algebra" --chapter-id 3
-python main.py path/to/handout.docx --subject "Chemistry" --subject-id 2 --chapter "Reactions" --chapter-id 1
+python3 main.py path/to/notes.pdf --video-id v2 --subject "Math" --chapter "Algebra" --chapter-id 3
+python3 main.py path/to/handout.docx --video-id v3 --subject "Chemistry" --chapter "Reactions" --chapter-id 1
 ```
 
 ### From Python
@@ -67,16 +71,19 @@ result = process_upload("notes.pdf", metadata=metadata)
 
 ```
 video_transcript/
-├── main.py                 # CLI entrypoint
+├── main.py                 # CLI: process uploads (file or URL: video/PDF/DOCX)
+├── query_chroma.py         # CLI: query ChromaDB or list all docs with metadata
 ├── requirements.txt
 ├── src/
 │   ├── __init__.py
 │   ├── audio_utils.py      # Extract audio from video (pydub), split into chunks
-│   ├── transcription.py    # Audio → text (SpeechRecognition / Google)
+│   ├── transcription.py   # Audio → text (SpeechRecognition / Google)
 │   ├── document_utils.py   # PDF/DOCX text extraction
+│   ├── download_utils.py   # Download from YouTube / direct URLs (yt-dlp)
 │   ├── pdf_generator.py    # Transcript text → PDF (reportlab)
-│   ├── vector_store.py     # ChromaDB: add documents with metadata
-│   └── pipeline.py         # process_upload() routes by file type
+│   ├── vector_store.py     # ChromaDB: add/query chunks with metadata
+│   ├── answer_generator.py # Gemini: precise answers from vector DB context (learning portal)
+│   └── pipeline.py         # process_upload() routes by file type or URL
 ├── output_audio_files/     # Extracted/chunked audio (video only)
 ├── output_transcripts/     # Generated transcript PDFs
 └── chroma_db/              # ChromaDB persistence
@@ -90,8 +97,58 @@ video_transcript/
 ## Vector DB (ChromaDB)
 
 - Stored under `chroma_db/` by default.
-- Metadata stored per document: `file_type`, `filename`, `subject`, `subject_id`, `chapter`, `chapter_id`, `part`, `user_id`.
+- **Chunking:** Transcripts and documents are split into ~500-character passages (with overlap). Queries return the **most relevant passages**, not full transcripts.
+- Metadata per chunk: `file_type`, `filename`, `subject`, `subject_id`, `chapter`, `chapter_id`, `part`, `user_id`, `chunk_index`, `total_chunks`, `source_id`.
 
-## License
+### Query ChromaDB (ask a question → get relevant passages)
 
-MIT
+ChromaDB embeds your question and returns the **most similar documents** (semantic search). Use `query_chroma.py`:
+
+```bash
+# Ask a question → returns related documents from all stored docs
+python3 query_chroma.py --query "How does motion work?"
+python3 query_chroma.py -q "What happens when you push something?" --n-results 3
+
+# List all stored documents and their metadata (see how data is stored)
+python3 query_chroma.py --list
+python3 query_chroma.py -l --json   # raw JSON output
+```
+
+- **`--ask "question"`**: **Learning portal mode.** Retrieves relevant passages from the vector DB, then uses **Google Gemini** to generate a **precise, educational answer** based only on that material. Requires `GEMINI_API_KEY` (get one at [Google AI Studio](https://aistudio.google.com/app/apikey)).
+- **`--query "question"`**: Raw semantic search — returns the most similar **passages (chunks)** by meaning (no Gemini). Each result includes metadata and distance (lower = more similar).
+- **`--list`**: Shows every chunk in the DB with its metadata and a passage preview.
+
+**Generate an answer (Gemini + vector DB):**
+
+```bash
+python3 query_chroma.py --ask "What is work in physics?"
+python3 query_chroma.py -a "How does motion work?" --n-context 8
+```
+
+**Where to add your Gemini API key** (get one at [Google AI Studio](https://aistudio.google.com/app/apikey)):
+
+| Option                         | Where                                                                                                                          | Use when                                                                                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`.env` file** (recommended)  | In the project root, create a file named `.env` with one line: `GEMINI_API_KEY=your_actual_key`                                | You want the key loaded automatically and not committed to git (`.env` is in `.gitignore`). Copy from `.env.example`: `cp .env.example .env` then edit `.env`. |
+| **Terminal (current session)** | Run in the same terminal before the script: `export GEMINI_API_KEY=your_actual_key`                                            | Quick test; key is not saved.                                                                                                                                  |
+| **Shell profile**              | Add `export GEMINI_API_KEY=your_actual_key` to `~/.bashrc` or `~/.zshrc`, then run `source ~/.bashrc` (or reopen the terminal) | You want the key set in every new terminal.                                                                                                                    |
+| **CLI flag**                   | Run: `python3 query_chroma.py --ask "..." --api-key your_actual_key`                                                           | One-off run without saving the key anywhere.                                                                                                                   |
+
+### From Python
+
+```python
+from src.vector_store import query_vector_db, list_all_documents
+from src.answer_generator import ask_question
+
+# Generate a precise answer from course material (Gemini + vector DB)
+result = ask_question("What is work in physics?", n_context=6)
+# result["answer"], result["success"], result["passages_used"], result["error"]
+
+# Semantic search only (no Gemini)
+result = query_vector_db("How does motion work?", n_results=5)
+# result["documents"], result["metadatas"], result["ids"], result["distances"]
+
+# Inspect all stored data with metadata
+data = list_all_documents()
+# data["ids"], data["documents"], data["metadatas"], data["count"]
+```
