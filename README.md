@@ -67,6 +67,37 @@ result = process_upload("notes.pdf", metadata=metadata)
 # result: {"success": True, "text": "...", "doc_id": "..."}
 ```
 
+### API (FastAPI)
+
+Start the API server from the project root:
+
+```bash
+uvicorn src.api:app --reload
+```
+
+Then you can:
+
+- Open interactive docs at: `http://localhost:8000/docs`
+- Use the following endpoints:
+
+- `POST /api/transcribe`
+  - Form fields:
+    - `file` (optional): uploaded video/PDF/DOCX file
+    - `url` (optional): remote URL (YouTube, direct .mp4, PDF, DOCX)
+    - `video_id`, `user_id`, `subject`, `subject_id`, `chapter`, `chapter_id`, `part`
+  - Runs the same pipeline as `main.py`:
+    - For video: extract audio → transcribe → create transcript PDF → store in ChromaDB
+    - For PDF/DOCX: extract text → store in ChromaDB
+
+- `POST /api/qa`
+  - JSON body:
+    - `question`: the question text
+    - `video_id` (optional): restrict answer to that video's vector data
+    - `n_context` (optional, default 6): number of passages to use as context
+  - Returns:
+    - `answer`: generated answer from Gemini
+    - `passages_used`: passages + metadata used as context
+
 ## Project Layout
 
 ```
@@ -74,6 +105,7 @@ video_transcript/
 ├── main.py                 # CLI: process uploads (file or URL: video/PDF/DOCX)
 ├── query_chroma.py         # CLI: query ChromaDB or list all docs with metadata
 ├── requirements.txt
+├── src/api.py              # FastAPI app: /api/transcribe, /api/qa
 ├── src/
 │   ├── __init__.py
 │   ├── audio_utils.py      # Extract audio from video (pydub), split into chunks

@@ -17,5 +17,9 @@ chromadb>=0.4.0
 google-genai>=1.0.0
 python-dotenv>=1.0.0
 
+# API
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
 # Optional: sentence-transformers for embeddings (or use Chroma default)
 # sentence-transformers>=2.2.0
