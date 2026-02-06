@@ -1,14 +1,21 @@
 """FastAPI APIs for video/PDF/DOCX transcription and question answering."""
 
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from src.answer_generator import ask_question
 from src.pipeline import process_upload
+
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 app = FastAPI(
@@ -41,43 +48,80 @@ class UploadMetadata(BaseModel):
     part: Optional[str] = None
 
 
+class TranscribeByUrlRequest(BaseModel):
+    """JSON body for URL-only transcribe (no file upload)."""
+    url: str
+    video_id: Optional[str] = None
+    user_id: Optional[str] = None
+    subject: Optional[str] = None
+    subject_id: Optional[str] = None
+    chapter: Optional[str] = None
+    chapter_id: Optional[str] = None
+    part: Optional[str] = None
+
+
 class QARequest(BaseModel):
     question: str
     video_id: Optional[str] = None
     n_context: int = 6
 
 
-@app.post("/api/transcribe", summary="Transcribe video / PDF / DOCX (file or URL)")
+def _run_transcribe(file_path: str, metadata: dict[str, Any]):
+    """Shared transcribe logic."""
+    result = process_upload(file_path, metadata=metadata)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Transcription failed."))
+    return result
+
+
+def _get_body(data: dict[str, Any]):
+    file = data.get("file")
+    url = data.get("url")
+    video_id = data.get("video_id")
+    subject = data.get("subject")
+    chapter = data.get("chapter")
+    subject_id = data.get("subject_id")
+    chapter_id = data.get("chapter_id")
+    part = data.get("part")
+    user_id = data.get("user_id")
+    
+    return file, url, video_id, subject, chapter, subject_id, chapter_id, part, user_id
+
+@app.post("/api/transcribe")
 async def transcribe(
-    file: Optional[UploadFile] = File(
-        default=None, description="Uploaded video/PDF/DOCX file (optional if url is provided)"
-    ),
-    url: Optional[str] = Form(
-        default=None, description="Remote URL (YouTube, direct .mp4, PDF, DOCX, etc.)"
-    ),
+    request: Request,
+    file: Optional[UploadFile] = File(default=None),
+    url: Optional[str] = Form(default=None),
     video_id: Optional[str] = Form(default=None),
-    user_id: Optional[str] = Form(default=None),
     subject: Optional[str] = Form(default=None),
-    subject_id: Optional[str] = Form(default=None),
     chapter: Optional[str] = Form(default=None),
+    subject_id: Optional[str] = Form(default=None),
     chapter_id: Optional[str] = Form(default=None),
     part: Optional[str] = Form(default=None),
+    user_id: Optional[str] = Form(default=None),
 ):
-    """
-    Transcribe a video, PDF, or DOCX from an uploaded file or URL.
+    content_type = request.headers.get("content-type", "")
+    logger.info(f"content_type: {content_type}")
 
-    - If `file` is provided, it is saved to disk and processed.
-    - If `url` is provided, it is downloaded (for video/PDF/DOCX) and processed.
-    - The pipeline automatically:
-        - Extracts audio from video and transcribes it.
-        - Creates a transcript PDF for videos.
-        - Extracts text from PDFs/DOCX.
-        - Stores text in ChromaDB with metadata (video_id, subject, chapter, etc.).
-    """
+    if "application/json" in content_type:
+        body = await request.json()
+
+        file, url, video_id, subject, chapter, subject_id, chapter_id, part, user_id = _get_body(body)
+
+    else:
+        body = await request.form()
+        logger.info(f"body: {body}")
+
+        file, url, video_id, subject, chapter, subject_id, chapter_id, part, user_id = _get_body(body)
+
+    logger.info(
+        "transcribe request: url=%s video_id=%s subject=%s chapter=%s",
+        url, video_id, subject, chapter
+    )
+
     if not file and not url:
-        raise HTTPException(status_code=400, detail="Either 'file' or 'url' must be provided.")
+        raise HTTPException(status_code=400, detail="Either file or url required")
 
-    # Build metadata dict
     metadata: dict[str, Any] = {
         "video_id": video_id or "",
         "user_id": user_id or "",
@@ -88,7 +132,6 @@ async def transcribe(
         "part": part or "",
     }
 
-    file_path: str
     if file is not None:
         uploads_dir = Path("uploads")
         uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -100,10 +143,25 @@ async def transcribe(
     else:
         file_path = url or ""
 
-    result = process_upload(file_path, metadata=metadata)
-    if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "Transcription failed."))
-    return result
+    return _run_transcribe(file_path, metadata)
+
+
+# @app.post("/api/transcribe/url", summary="Transcribe from URL only (JSON body)")
+# async def transcribe_by_url(payload: TranscribeByUrlRequest):
+#     """
+#     Transcribe from a remote URL only. Send JSON body: {"url": "...", "video_id": "...", "subject": "...", ...}.
+#     Use this from Postman with Body → raw → JSON to avoid form-data issues.
+#     """
+#     metadata: dict[str, Any] = {
+#         "video_id": payload.video_id or "",
+#         "user_id": payload.user_id or "",
+#         "subject": payload.subject or "",
+#         "subject_id": payload.subject_id or "",
+#         "chapter": payload.chapter or "",
+#         "chapter_id": payload.chapter_id or "",
+#         "part": payload.part or "",
+#     }
+#     return _run_transcribe(payload.url, metadata)
 
 
 @app.post("/api/qa", summary="Question answering over stored transcripts")
